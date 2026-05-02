@@ -11,9 +11,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
+from app.auth.router import router as auth_router
 from app.config import settings
 from app.database import Base, engine
 from app.schemas import HealthResponse
+from app.users.router import router as users_router
 
 
 @asynccontextmanager
@@ -47,6 +49,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Routers ───────────────────────────────────────────────────────────────────
+
+app.include_router(auth_router)
+app.include_router(users_router)
 
 
 # ── Stoplight Elements docs ───────────────────────────────────────────────────
