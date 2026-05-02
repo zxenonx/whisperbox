@@ -23,6 +23,7 @@ dev = [
     "anyio>=4.0.0",
     "ruff>=0.6.0",
     "coverage[toml]>=7.0.0",
+    "httpx-ws>=0.9.0",
 ]
 
 [build-system]
@@ -50,6 +51,10 @@ known-first-party = ["app"]
 "app/main.py" = ["E501"]
 # Field description strings are intentionally verbose for intern reference.
 "app/schemas.py" = ["E501"]
+# Router Query descriptions and WS docstring tables have unavoidable long lines.
+"app/messages/router.py" = ["E501"]
+"app/messages/service.py" = ["E501"]
+"app/websocket/router.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
