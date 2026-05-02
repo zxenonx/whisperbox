@@ -35,10 +35,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(
     title="WhisperBox",
     version="0.1.0",
-    description=(
-        "End-to-end encrypted instant messaging backend. "
-        "The server stores only ciphertext — plaintext never leaves the client."
-    ),
+    description="""
+End-to-end encrypted instant messaging backend. The server stores only ciphertext — plaintext never leaves the client.
+
+---
+
+## How it works
+
+WhisperBox uses a **hybrid encryption** scheme:
+
+- Each message is encrypted with a random **AES-GCM 256-bit key** (fast symmetric encryption).
+- That AES key is then encrypted with the **recipient's RSA-OAEP public key** so only they can decrypt it.
+- A second copy of the AES key is encrypted with the **sender's own public key** so they can read their own sent messages.
+- The server stores and forwards the encrypted blobs without ever seeing plaintext.
+
+---
+
+## Typical flow
+
+### 1. Register
+Generate an RSA-OAEP keypair and a PBKDF2 salt on the client. Derive an AES-KW wrapping key from the user's password and use it to wrap the RSA private key. Send the public key, wrapped private key, and salt to `POST /auth/register`. You get back an access token, a refresh token, and the user profile.
+
+### 2. Log in
+Call `POST /auth/login`. The response includes `wrapped_private_key` and `pbkdf2_salt` — use these to re-derive the wrapping key from the password and unwrap the RSA private key back into memory. Never persist the private key in plaintext.
+
+### 3. Find someone to message
+Use `GET /users/search?q=name` to find a user, then `GET /users/{userId}/public-key` to retrieve their RSA-OAEP public key.
+
+### 4. Connect via WebSocket
+Open `wss://whisperbox.koyeb.app/ws?token=<access_token>`. On connect the server immediately flushes any messages that arrived while you were offline.
+
+### 5. Send a message
+Generate a random AES-GCM key and IV. Encrypt your plaintext. Encrypt the AES key with the recipient's public key (`encryptedKey`) and again with your own public key (`encryptedKeyForSelf`). Send all four values as the `payload` in a `message.send` WebSocket frame. If the WebSocket is unavailable, use the `POST /messages` REST fallback instead — the message will be delivered on the recipient's next reconnect.
+
+### 6. Receive a message
+Listen for `message.receive` frames on the WebSocket. Decrypt `encryptedKey` with your RSA private key to recover the AES-GCM key, then decrypt `ciphertext` with that key and the `iv`.
+
+### 7. Load history
+`GET /conversations` lists all active threads. `GET /conversations/{userId}/messages` returns paginated history (newest first). Use the `before` query parameter as a cursor to page back through older messages.
+
+### 8. Keep the session alive
+Access tokens expire after **15 minutes**. Call `POST /auth/refresh` with the refresh token to get a new access token without logging in again. On logout, call `POST /auth/logout` to revoke the refresh token.
+
+---
+
+## Authentication
+
+All endpoints except `/auth/register`, `/auth/login`, and `/auth/refresh` require:
+
+```
+Authorization: Bearer <access_token>
+```
+
+The WebSocket endpoint cannot use headers — pass the token as a query parameter: `?token=<access_token>`.
+""",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,

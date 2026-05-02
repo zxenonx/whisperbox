@@ -7,13 +7,13 @@ WhisperBox is an **end-to-end encrypted (E2EE) messaging backend**. The server n
 ## Base URL
 
 ```
-https://<your-koyeb-app>.koyeb.app
+https://whisperbox.koyeb.app
 ```
 
 Interactive API docs (try requests live):
 
 ```
-https://<your-koyeb-app>.koyeb.app/docs
+https://whisperbox.koyeb.app/docs
 ```
 
 ---
@@ -36,9 +36,9 @@ WhisperBox uses a hybrid encryption scheme — you must implement this on the cl
 
 ### Key setup (on register)
 
-1. Generate an **RSA-OAEP 2048-bit keypair** in the browser (`window.crypto.subtle.generateKey`)
+1. Generate an **RSA-OAEP 2048-bit keypair** in the browser
 2. Generate a random **128-bit PBKDF2 salt**
-3. Derive a wrapping key from the user's password: `PBKDF2(password, salt, 100_000 iterations, SHA-256) → AES-KW 256-bit`
+3. Derive a wrapping key from the user's password using PBKDF2 → AES-KW
 4. Wrap (encrypt) the RSA private key with AES-KW
 5. Export the RSA public key as base64
 6. Send everything to `POST /auth/register` — the server stores the blobs verbatim
@@ -317,7 +317,7 @@ Use this when a WebSocket connection is not available. The message is stored and
 Connect with your JWT in the query string (browsers don't support custom headers on WebSocket upgrades).
 
 ```
-wss://<your-koyeb-app>.koyeb.app/ws?token=eyJ...
+wss://whisperbox.koyeb.app/ws?token=eyJ...
 ```
 
 On connect, any undelivered messages are flushed to you immediately before the connection is fully open.
@@ -392,17 +392,17 @@ On connect, any undelivered messages are flushed to you immediately before the c
 
 ## Quick Reference
 
-| Method | Path | Auth | Description |
+| Method | Path | Token required | Description |
 |---|---|---|---|
-| GET | `/health` | ✗ | Server health |
-| POST | `/auth/register` | ✗ | Create account |
-| POST | `/auth/login` | ✗ | Log in |
-| GET | `/auth/me` | ✓ | Current user profile |
-| POST | `/auth/refresh` | ✗ | Refresh access token |
-| POST | `/auth/logout` | ✓ | Revoke refresh token |
-| GET | `/users/search?q=` | ✓ | Search users |
-| GET | `/users/{id}/public-key` | ✓ | Get user's RSA public key |
-| GET | `/conversations` | ✓ | List conversations |
-| GET | `/conversations/{id}/messages` | ✓ | Message history (paginated) |
-| POST | `/messages` | ✓ | Send message (offline fallback) |
-| WS | `/ws?token=` | ✓ | Real-time messaging |
+| GET | `/health` | No | Server health |
+| POST | `/auth/register` | No | Create account |
+| POST | `/auth/login` | No | Log in |
+| GET | `/auth/me` | Yes | Current user profile |
+| POST | `/auth/refresh` | No | Refresh access token |
+| POST | `/auth/logout` | Yes | Revoke refresh token |
+| GET | `/users/search?q=` | Yes | Search users |
+| GET | `/users/{id}/public-key` | Yes | Get user's RSA public key |
+| GET | `/conversations` | Yes | List conversations |
+| GET | `/conversations/{id}/messages` | Yes | Message history (paginated) |
+| POST | `/messages` | Yes | Send message (offline fallback) |
+| WS | `/ws?token=` | Yes | Real-time messaging |
