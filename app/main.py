@@ -14,8 +14,10 @@ from fastapi.responses import HTMLResponse
 from app.auth.router import router as auth_router
 from app.config import settings
 from app.database import Base, engine
+from app.messages.router import router as messages_router
 from app.schemas import HealthResponse
 from app.users.router import router as users_router
+from app.websocket.router import router as ws_router
 
 
 @asynccontextmanager
@@ -55,6 +57,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(messages_router)
+app.include_router(ws_router)
 
 
 # ── Stoplight Elements docs ───────────────────────────────────────────────────
