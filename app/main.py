@@ -4,12 +4,14 @@ Mounts all routers and configures middleware. API documentation is served
 via Stoplight Elements at /docs instead of the default Swagger UI.
 """
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from sqlalchemy.exc import OperationalError
 
 from app.auth.router import router as auth_router
 from app.config import settings
@@ -19,15 +21,17 @@ from app.schemas import HealthResponse
 from app.users.router import router as users_router
 from app.websocket.router import router as ws_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """Create all tables on startup (development convenience).
-
-    In production, Alembic migrations manage the schema.
-    """
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except OperationalError as exc:
+        # Another worker already created the tables — safe to continue.
+        logger.warning("Table creation skipped: %s", exc.orig)
     yield
     await engine.dispose()
 
