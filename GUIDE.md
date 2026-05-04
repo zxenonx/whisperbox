@@ -1,4 +1,4 @@
-# WhisperBox — Intern API Guide
+# WhisperBox — API Guide
 
 WhisperBox is an **end-to-end encrypted (E2EE) messaging backend**. The server never sees plaintext — it only stores and forwards encrypted blobs. All encryption and decryption happens on the client.
 
@@ -36,7 +36,7 @@ WhisperBox uses a hybrid encryption scheme — you must implement this on the cl
 
 ### Key setup (on register)
 
-1. Generate an **RSA-OAEP 2048-bit keypair** in the browser
+1. Generate an **RSA-OAEP 2048-bit keypair** on the client
 2. Generate a random **128-bit PBKDF2 salt**
 3. Derive a wrapping key from the user's password using PBKDF2 → AES-KW
 4. Wrap (encrypt) the RSA private key with AES-KW

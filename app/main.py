@@ -11,8 +11,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from sqlalchemy.exc import OperationalError
-
 from app.auth.router import router as auth_router
 from app.config import settings
 from app.database import Base, engine
@@ -26,12 +24,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except OperationalError as exc:
-        # Another worker already created the tables — safe to continue.
-        logger.warning("Table creation skipped: %s", exc.orig)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
