@@ -1,15 +1,26 @@
 """Unit tests for auth utility functions."""
 
+from datetime import UTC, datetime, timedelta
 
+from jose import jwt
 
 from app.auth.utils import (
     create_access_token,
     decode_access_token,
+    decode_access_token_ws,
     generate_refresh_token,
     hash_password,
     hash_refresh_token,
     verify_password,
 )
+from app.config import settings
+
+
+def _make_token(sub: str, *, delta: timedelta) -> str:
+    """Build a JWT whose expiry is offset from now by *delta*."""
+    now = datetime.now(UTC)
+    payload = {"sub": sub, "exp": now + delta, "iat": now}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 class TestPasswordHashing:
@@ -49,6 +60,55 @@ class TestJWT:
         token, _ = create_access_token("user-123")
         tampered = token[:-4] + "xxxx"
         assert decode_access_token(tampered) is None
+
+
+class TestDecodeAccessTokenWs:
+    """decode_access_token_ws must distinguish expired from invalid tokens."""
+
+    def test_valid_token_returns_payload_and_false(self):
+        token = _make_token("user-1", delta=timedelta(minutes=15))
+        payload, expired = decode_access_token_ws(token)
+        assert payload is not None
+        assert payload["sub"] == "user-1"
+        assert expired is False
+
+    def test_expired_token_returns_none_and_true(self):
+        token = _make_token("user-2", delta=timedelta(hours=-1))
+        payload, expired = decode_access_token_ws(token)
+        assert payload is None
+        assert expired is True
+
+    def test_garbage_string_returns_none_and_false(self):
+        payload, expired = decode_access_token_ws("notavalidtoken")
+        assert payload is None
+        assert expired is False
+
+    def test_tampered_signature_returns_none_and_false(self):
+        token = _make_token("user-3", delta=timedelta(minutes=15))
+        tampered = token[:-4] + "XXXX"
+        payload, expired = decode_access_token_ws(tampered)
+        assert payload is None
+        assert expired is False
+
+    def test_wrong_secret_returns_none_and_false(self):
+        token = jwt.encode(
+            {"sub": "user-4", "exp": datetime.now(UTC) + timedelta(minutes=15)},
+            "totally-wrong-secret",
+            algorithm="HS256",
+        )
+        payload, expired = decode_access_token_ws(token)
+        assert payload is None
+        assert expired is False
+
+    def test_token_expiring_in_future_is_not_expired(self):
+        token = _make_token("user-5", delta=timedelta(seconds=1))
+        _, expired = decode_access_token_ws(token)
+        assert expired is False
+
+    def test_token_expired_one_second_ago_is_expired(self):
+        token = _make_token("user-6", delta=timedelta(seconds=-1))
+        _, expired = decode_access_token_ws(token)
+        assert expired is True
 
 
 class TestRefreshToken:
