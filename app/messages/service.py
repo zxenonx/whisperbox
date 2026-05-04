@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Message, User
@@ -114,8 +114,14 @@ async def list_conversations(user_id: UUID, db: AsyncSession) -> list[Conversati
     # Find the latest message timestamp for each conversation partner.
     subq = (
         select(
-            func.greatest(Message.from_user_id, Message.to_user_id).label("user_a"),
-            func.least(Message.from_user_id, Message.to_user_id).label("user_b"),
+            case(
+                (Message.from_user_id > Message.to_user_id, Message.from_user_id),
+                else_=Message.to_user_id,
+            ).label("user_a"),
+            case(
+                (Message.from_user_id < Message.to_user_id, Message.from_user_id),
+                else_=Message.to_user_id,
+            ).label("user_b"),
             func.max(Message.created_at).label("last_ts"),
         )
         .where(
