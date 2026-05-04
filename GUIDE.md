@@ -373,6 +373,31 @@ On connect, any undelivered messages are flushed to you immediately before the c
 
 ---
 
+#### WebSocket close codes
+
+The server always accepts the WebSocket handshake before sending a close frame, so the close code is always visible to the client (not hidden behind an HTTP 403).
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `4001` | Access token **expired** | Call `POST /auth/refresh` to get a new token, then reconnect |
+| `4003` | Token **missing or invalid** | Token was tampered or was never valid — redirect to login |
+
+**Reconnect pattern (recommended)**
+
+```
+WS closed with 4001
+  → POST /auth/refresh   (use stored refresh token)
+  → if 200: reconnect with new access_token
+  → if 401: redirect to login (refresh token also expired)
+
+WS closed with 4003
+  → redirect to login immediately (do not retry)
+```
+
+> Access tokens expire after **15 minutes**. Proactively refresh (e.g. at the 14-minute mark) rather than waiting for the 4001 close to avoid interrupting the connection.
+
+---
+
 ## Typical Client Flow
 
 ```

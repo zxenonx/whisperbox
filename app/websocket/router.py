@@ -3,9 +3,9 @@
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from app.auth.utils import decode_access_token
+from app.auth.utils import decode_access_token_ws
 from app.database import AsyncSessionLocal
 from app.messages import service as msg_service
 from app.schemas import SendMessageRequest, WsMessageReceive
@@ -14,22 +14,24 @@ from app.websocket.manager import manager
 router = APIRouter(tags=["websocket"])
 
 
-async def _authenticate(token: str | None) -> UUID | None:
+async def _authenticate(token: str | None) -> tuple[UUID | None, bool]:
     """Decode and validate the JWT from the WebSocket handshake query param.
 
     Args:
         token: Raw JWT string from the ``?token=`` query parameter.
 
     Returns:
-        The user UUID if the token is valid, None otherwise.
+        A tuple of (user_id, is_expired). user_id is None on any auth failure.
+        is_expired is True when the token had a valid signature but has expired,
+        so the caller can signal the client to refresh rather than retry blindly.
     """
     if not token:
-        return None
-    payload = decode_access_token(token)
+        return None, False
+    payload, expired = decode_access_token_ws(token)
     if not payload:
-        return None
+        return None, expired
     sub = payload.get("sub")
-    return UUID(sub) if sub else None
+    return (UUID(sub) if sub else None), False
 
 
 @router.websocket("/ws")
@@ -60,10 +62,21 @@ async def websocket_endpoint(
     the socket is ready to accept new sends.
 
     **Error frame**: ``{"event": "error", "detail": "<reason>"}``
+
+    **WebSocket close codes**
+
+    | Code | Meaning | Recommended client action |
+    |---|---|---|
+    | ``4001`` | Access token expired | Call ``POST /auth/refresh``, then reconnect |
+    | ``4003`` | Token missing or invalid | Redirect user to login |
     """
-    user_id = await _authenticate(token)
+    user_id, token_expired = await _authenticate(token)
     if user_id is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        # Accept first so the close frame (not HTTP 403) reaches the client.
+        # 4001 → expired token, client should refresh then reconnect
+        # 4003 → invalid/missing token, client should not retry without re-login
+        await websocket.accept()
+        await websocket.close(code=4001 if token_expired else 4003)
         return
 
     await manager.connect(user_id, websocket)

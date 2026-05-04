@@ -7,10 +7,15 @@ hermetic and require no external services.
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
 
+# StaticPool forces a single connection to be reused across all sessions from
+# the same engine. This is required for SQLite in-memory databases: without it,
+# a second connection (e.g. from a WebSocket handler running concurrently)
+# would receive a fresh empty database and see no test data.
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
@@ -22,7 +27,12 @@ def anyio_backend():
 @pytest.fixture(scope="function")
 async def db_engine():
     """Create a fresh in-memory SQLite engine per test function."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
