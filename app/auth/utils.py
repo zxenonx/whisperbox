@@ -5,7 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 
 from app.config import settings
 
@@ -67,6 +67,28 @@ def decode_access_token(token: str) -> dict | None:
         return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
     except JWTError:
         return None
+
+
+def decode_access_token_ws(token: str) -> tuple[dict | None, bool]:
+    """Decode a JWT and distinguish expiry from other failures.
+
+    Used by the WebSocket endpoint to send a specific close code so clients
+    know whether to refresh the token (4001) or give up (4003).
+
+    Args:
+        token: The raw JWT string from the ``?token=`` query parameter.
+
+    Returns:
+        A tuple of (payload, is_expired). payload is None on any failure.
+        is_expired is True only when the signature was valid but the token
+        has passed its expiry time.
+    """
+    try:
+        return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm]), False
+    except ExpiredSignatureError:
+        return None, True
+    except JWTError:
+        return None, False
 
 
 def generate_refresh_token() -> tuple[str, str]:
